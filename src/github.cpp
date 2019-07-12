@@ -170,7 +170,13 @@ void GitHub::onFinished(const Request& req)
 
 void GitHub::onError(const Request& req, QNetworkReply::NetworkError error)
 {
-  qDebug("network error %d", error);
+  // the only way the request can be aborted is when there's a timeout, which
+  // already logs a message
+  if (error != QNetworkReply::OperationCanceledError) {
+    qCritical().noquote().nospace()
+      << "Github: request for " << req.reply->url().toString() << " failed, "
+      << req.reply->errorString() << " (" << error << ")";
+  }
 
   req.timer->stop();
   req.reply->disconnect();
@@ -185,7 +191,8 @@ void GitHub::onError(const Request& req, QNetworkReply::NetworkError error)
 
 void GitHub::onTimeout(const Request& req)
 {
-  qDebug("timeout");
+  qCritical().noquote().nospace()
+    << "Github: request for " << req.reply->url().toString() << " timed out";
 
   // don't delete the reply, abort will fire the error() handler above
   req.reply->abort();
