@@ -67,6 +67,7 @@ public:
 
 public:
   GitHub(const char *clientId = nullptr);
+  ~GitHub();
 
   QJsonArray releases(const Repository &repo);
   void releases(const Repository &repo,
@@ -85,4 +86,9 @@ private:
 
 private:
   QNetworkAccessManager *m_AccessManager;
+
+  // remember the replies that are in flight and delete them in the destructor
+  std::vector<QNetworkReply*> m_replies;
+
+  void deleteReply(QNetworkReply* reply);
 };

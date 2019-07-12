@@ -21,6 +21,16 @@ GitHub::GitHub(const char *clientId)
   }
 }
 
+GitHub::~GitHub()
+{
+  // delete all the replies since they depend on the access manager, which is
+  // about to be deleted
+  for (auto* reply : m_replies) {
+    reply->disconnect();
+    delete reply;
+  }
+}
+
 QJsonArray GitHub::releases(const Repository &repo)
 {
   QJsonDocument result
@@ -114,10 +124,17 @@ void GitHub::request(Method method, const QString &path, const QByteArray &data,
                      const std::function<void(const QJsonDocument &)> &callback,
                      bool relative)
 {
-  QTimer *timer = new QTimer();
+  // make sure the timer is a child of this so it's deleted correctly and
+  // doesn't fire after the GitHub object is destroyed; this happens when
+  // restarting MO by switching instances, for example
+  QTimer *timer = new QTimer(this);
+
   timer->setSingleShot(true);
   timer->setInterval(30000);
   QNetworkReply *reply = genReply(method, path, data, relative);
+
+  // remember this reply
+  m_replies.push_back(reply);
 
   connect(reply, &QNetworkReply::finished, [this, reply, timer, method, data, callback]() {
     QJsonDocument result = handleReply(reply);
@@ -129,24 +146,41 @@ void GitHub::request(Method method, const QString &path, const QByteArray &data,
     } else {
       callback(result);
     }
-    reply->deleteLater();
+
+    deleteReply(reply);
   });
 
   connect(reply,
           static_cast<void (QNetworkReply::*)(QNetworkReply::NetworkError)>(
               &QNetworkReply::error),
-          [reply, timer, callback](QNetworkReply::NetworkError error) {
+          [this, reply, timer, callback](QNetworkReply::NetworkError error) {
             qDebug("network error %d", error);
             timer->stop();
             reply->disconnect();
             callback(QJsonDocument(
                 QJsonObject({{"network_error", reply->errorString()}})));
-            reply->deleteLater();
+
+            deleteReply(reply);
           });
 
-  connect(timer, &QTimer::timeout, [reply]() {
+  connect(timer, &QTimer::timeout, [this, reply]() {
     qDebug("timeout");
+
+    // don't delete the reply, abort will fire the error() handler above
     reply->abort();
   });
+
   timer->start();
+}
+
+void GitHub::deleteReply(QNetworkReply* reply)
+{
+  // remove from the list
+  auto itor = std::find(m_replies.begin(), m_replies.end(), reply);
+  if (itor != m_replies.end()) {
+    m_replies.erase(itor);
+  }
+
+  // delete
+  reply->deleteLater();
 }
