@@ -28,9 +28,6 @@ QJsonArray GitHub::releases(const Repository &repo)
                 QString("repos/%1/%2/releases").arg(repo.owner, repo.project),
                 QByteArray(),
                 true);
-  if (!result.isArray()) {
-    throw GitHubException(result.object());
-  }
   return result.array();
 }
 
@@ -40,9 +37,6 @@ void GitHub::releases(const Repository &repo,
   request(Method::GET,
           QString("repos/%1/%2/releases").arg(repo.owner, repo.project),
           QByteArray(), [callback](const QJsonDocument &result) {
-            if (!result.isArray()) {
-              throw GitHubException(result.object());
-            }
             callback(result.array());
           }, true);
 }
@@ -144,6 +138,7 @@ void GitHub::request(Method method, const QString &path, const QByteArray &data,
           [reply, timer, callback](QNetworkReply::NetworkError error) {
             qDebug("network error %d", error);
             timer->stop();
+            reply->disconnect();
             callback(QJsonDocument(
                 QJsonObject({{"network_error", reply->errorString()}})));
             reply->deleteLater();
