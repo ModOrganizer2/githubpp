@@ -5,6 +5,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QTimer>
+#include <QNetworkReply>
 #include <functional>
 
 class GitHubException : public std::exception
@@ -67,6 +69,7 @@ public:
 
 public:
   GitHub(const char *clientId = nullptr);
+  ~GitHub();
 
   QJsonArray releases(const Repository &repo);
   void releases(const Repository &repo,
@@ -84,5 +87,23 @@ private:
                           const QByteArray &data, bool relative);
 
 private:
+  struct Request
+  {
+    Method method = Method::GET;
+    QByteArray data;
+    std::function<void (const QJsonDocument &)> callback;
+    QTimer* timer = nullptr;
+    QNetworkReply* reply = nullptr;
+  };
+
   QNetworkAccessManager *m_AccessManager;
+
+  // remember the replies that are in flight and delete them in the destructor
+  std::vector<QNetworkReply*> m_replies;
+
+  void onFinished(const Request& req);
+  void onError(const Request& req, QNetworkReply::NetworkError error);
+  void onTimeout(const Request& req);
+
+  void deleteReply(QNetworkReply* reply);
 };

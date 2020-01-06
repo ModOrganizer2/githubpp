@@ -1,8 +1,6 @@
 #include <QJsonDocument>
 #include <QEventLoop>
 #include <QNetworkRequest>
-#include <QNetworkReply>
-#include <QTimer>
 #include "github.h"
 
 #include <QThread>
@@ -18,6 +16,16 @@ GitHub::GitHub(const char *clientId)
   if (m_AccessManager->networkAccessible()
       == QNetworkAccessManager::UnknownAccessibility) {
     m_AccessManager->setNetworkAccessible(QNetworkAccessManager::Accessible);
+  }
+}
+
+GitHub::~GitHub()
+{
+  // delete all the replies since they depend on the access manager, which is
+  // about to be deleted
+  for (auto* reply : m_replies) {
+    reply->disconnect();
+    delete reply;
   }
 }
 
@@ -114,39 +122,90 @@ void GitHub::request(Method method, const QString &path, const QByteArray &data,
                      const std::function<void(const QJsonDocument &)> &callback,
                      bool relative)
 {
-  QTimer *timer = new QTimer();
+  // make sure the timer is owned by this so it's deleted correctly and
+  // doesn't fire after the GitHub object is destroyed; this happens when
+  // restarting MO by switching instances, for example
+  QTimer *timer = new QTimer(this);
   timer->setSingleShot(true);
-  timer->setInterval(30000);
+  timer->setInterval(10000);
+
   QNetworkReply *reply = genReply(method, path, data, relative);
 
-  connect(reply, &QNetworkReply::finished, [this, reply, timer, method, data, callback]() {
-    QJsonDocument result = handleReply(reply);
-    QJsonObject object = result.object();
-    timer->stop();
-    if (object.value("http_status").toDouble() == 301.0) {
-      request(method, object.value("redirection").toString(), data, callback,
-              false);
-    } else {
-      callback(result);
-    }
-    reply->deleteLater();
-  });
+  // remember this reply so it can be deleted in the destructor if necessary
+  m_replies.push_back(reply);
 
-  connect(reply,
-          static_cast<void (QNetworkReply::*)(QNetworkReply::NetworkError)>(
-              &QNetworkReply::error),
-          [reply, timer, callback](QNetworkReply::NetworkError error) {
-            qDebug("network error %d", error);
-            timer->stop();
-            reply->disconnect();
-            callback(QJsonDocument(
-                QJsonObject({{"network_error", reply->errorString()}})));
-            reply->deleteLater();
-          });
+  Request req = {method, data, callback, timer, reply};
 
-  connect(timer, &QTimer::timeout, [reply]() {
-    qDebug("timeout");
-    reply->abort();
-  });
+  // finished
+  connect(reply, &QNetworkReply::finished, [this, req]{ onFinished(req); });
+
+  // error
+  connect(
+    reply, qOverload<QNetworkReply::NetworkError>(&QNetworkReply::error),
+    [this, req](auto&& error){ onError(req, error); });
+
+  // timeout
+  connect(timer, &QTimer::timeout, [this, req]{ onTimeout(req); });
+
   timer->start();
+}
+
+void GitHub::onFinished(const Request& req)
+{
+  QJsonDocument result = handleReply(req.reply);
+  QJsonObject object = result.object();
+
+  req.timer->stop();
+
+  if (object.value("http_status").toInt() == 301) {
+    request(
+      req.method, object.value("redirection").toString(),
+      req.data, req.callback, false);
+  } else {
+    req.callback(result);
+  }
+
+  deleteReply(req.reply);
+}
+
+void GitHub::onError(const Request& req, QNetworkReply::NetworkError error)
+{
+  // the only way the request can be aborted is when there's a timeout, which
+  // already logs a message
+  if (error != QNetworkReply::OperationCanceledError) {
+    qCritical().noquote().nospace()
+      << "Github: request for " << req.reply->url().toString() << " failed, "
+      << req.reply->errorString() << " (" << error << ")";
+  }
+
+  req.timer->stop();
+  req.reply->disconnect();
+
+  QJsonObject root({{"network_error", req.reply->errorString()}});
+  QJsonDocument doc(root);
+
+  req.callback(doc);
+
+  deleteReply(req.reply);
+}
+
+void GitHub::onTimeout(const Request& req)
+{
+  qCritical().noquote().nospace()
+    << "Github: request for " << req.reply->url().toString() << " timed out";
+
+  // don't delete the reply, abort will fire the error() handler above
+  req.reply->abort();
+}
+
+void GitHub::deleteReply(QNetworkReply* reply)
+{
+  // remove from the list
+  auto itor = std::find(m_replies.begin(), m_replies.end(), reply);
+  if (itor != m_replies.end()) {
+    m_replies.erase(itor);
+  }
+
+  // delete
+  reply->deleteLater();
 }
