@@ -10,14 +10,8 @@ static const QString GITHUB_URL("https://api.github.com");
 static const QString USER_AGENT("GitHubPP");
 
 
-GitHub::GitHub(const char *clientId)
-  : m_AccessManager(new QNetworkAccessManager(this))
-{
-  if (m_AccessManager->networkAccessible()
-      == QNetworkAccessManager::UnknownAccessibility) {
-    m_AccessManager->setNetworkAccessible(QNetworkAccessManager::Accessible);
-  }
-}
+GitHub::GitHub(const char* clientId)
+    : m_AccessManager(new QNetworkAccessManager(this)) {}
 
 GitHub::~GitHub()
 {
@@ -141,7 +135,7 @@ void GitHub::request(Method method, const QString &path, const QByteArray &data,
 
   // error
   connect(
-    reply, qOverload<QNetworkReply::NetworkError>(&QNetworkReply::error),
+    reply, qOverload<QNetworkReply::NetworkError>(&QNetworkReply::errorOccurred),
     [this, req](auto&& error){ onError(req, error); });
 
   // timeout
