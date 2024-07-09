@@ -1,10 +1,32 @@
 cmake_minimum_required(VERSION 3.16)
 
-if(DEFINED DEPENDENCIES_DIR)
-	include(${DEPENDENCIES_DIR}/modorganizer_super/cmake_common/mo2.cmake)
-else()
-	include(${CMAKE_CURRENT_LIST_DIR}/../cmake_common/mo2.cmake)
-endif()
+include(CMakePackageConfigHelpers)
 
 project(githubpp)
+
 add_subdirectory(src)
+
+set_target_properties(githubpp PROPERTIES
+		VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_INSTALL_PREFIX}/bin
+		VS_DEBUGGER_COMMAND ${CMAKE_INSTALL_PREFIX}/bin/ModOrganizer.exe)
+set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT githubpp)
+
+configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/config.cmake.in
+  "${CMAKE_CURRENT_BINARY_DIR}/mo2-githubpp-config.cmake"
+  INSTALL_DESTINATION "lib/cmake/mo2-githubpp"
+  NO_SET_AND_CHECK_MACRO
+  NO_CHECK_REQUIRED_COMPONENTS_MACRO
+)
+
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/mo2-githubpp-config-version.cmake"
+  VERSION "0.0.1"
+  COMPATIBILITY AnyNewerVersion
+  ARCH_INDEPENDENT
+)
+
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/mo2-githubpp-config.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/mo2-githubpp-config-version.cmake
+  DESTINATION lib/cmake/mo2-githubpp
+)
