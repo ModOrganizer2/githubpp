@@ -1,32 +1,28 @@
 #pragma once
 
-#include <QNetworkAccessManager>
-#include <QNetworkCookieJar>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QJsonArray>
-#include <QTimer>
+#include <QNetworkAccessManager>
+#include <QNetworkCookieJar>
 #include <QNetworkReply>
+#include <QTimer>
 #include <functional>
 
 class GitHubException : public std::exception
 {
 public:
-  GitHubException(const QJsonObject &errorObj)
-    : std::exception()
+  GitHubException(const QJsonObject& errorObj) : std::exception()
   {
     initMessage(errorObj);
   }
 
   virtual ~GitHubException() throw() override {}
 
-  virtual const char *what() const throw()
-  {
-    return m_Message.constData();
-  }
+  virtual const char* what() const throw() { return m_Message.constData(); }
 
 private:
-  void initMessage(const QJsonObject &obj)
+  void initMessage(const QJsonObject& obj)
   {
     if (obj.contains("http_status")) {
       m_Message = QString("HTTP Status %1: %2")
@@ -55,48 +51,51 @@ class GitHub : public QObject
   Q_OBJECT
 
 public:
-  enum class Method { GET, POST };
+  enum class Method
+  {
+    GET,
+    POST
+  };
 
-  struct Repository {
-    Repository(const QString &owner, const QString &project)
-      : owner(owner)
-      , project(project)
-    {
-    }
+  struct Repository
+  {
+    Repository(const QString& owner, const QString& project)
+        : owner(owner), project(project)
+    {}
     QString owner;
     QString project;
   };
 
 public:
-  GitHub(const char *clientId = nullptr);
+  GitHub(const char* clientId = nullptr);
   ~GitHub();
 
-  QJsonArray releases(const Repository &repo);
-  void releases(const Repository &repo,
-                const std::function<void (const QJsonArray &)> &callback);
+  QJsonArray releases(const Repository& repo);
+  void releases(const Repository& repo,
+                const std::function<void(const QJsonArray&)>& callback);
 
 private:
-  QJsonDocument request(Method method, const QString &path,
-                        const QByteArray &data, bool relative);
-  void request(Method method, const QString &path, const QByteArray &data,
-               const std::function<void (const QJsonDocument &)> &callback,
+  QJsonDocument request(Method method, const QString& path, const QByteArray& data,
+                        bool relative);
+  void request(Method method, const QString& path, const QByteArray& data,
+               const std::function<void(const QJsonDocument&)>& callback,
                bool relative);
 
-  QJsonDocument handleReply(QNetworkReply *reply);
-  QNetworkReply *genReply(Method method, const QString &path,
-                          const QByteArray &data, bool relative);
+  QJsonDocument handleReply(QNetworkReply* reply);
+  QNetworkReply* genReply(Method method, const QString& path, const QByteArray& data,
+                          bool relative);
 
 private:
   struct Request
   {
     Method method = Method::GET;
     QByteArray data;
-    std::function<void (const QJsonDocument &)> callback;
-    QTimer* timer = nullptr;
+    std::function<void(const QJsonDocument&)> callback;
+    QTimer* timer        = nullptr;
     QNetworkReply* reply = nullptr;
   };
 
-  QNetworkAccessManager *m_AccessManager;
+  QNetworkAccessManager* m_AccessManager;
 
   // remember the replies that are in flight and delete them in the destructor
   std::vector<QNetworkReply*> m_replies;
