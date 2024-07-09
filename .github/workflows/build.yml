@@ -10,12 +10,21 @@ jobs:
   build:
     runs-on: windows-2022
     steps:
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: 6.7.0
+          modules:
+          cache: true
+
       - uses: actions/checkout@v4
 
       - name: Configure Github++ build
         shell: pwsh
         run: |
-          cmake --preset vs2022-windows "-DCMAKE_INSTALL_PREFIX=install"
+          cmake --preset vs2022-windows `
+            "-DCMAKE_PREFIX_PATH=${env:QT_ROOT_DIR}\msvc2019_64" `
+            "-DCMAKE_INSTALL_PREFIX=install"
 
       - name: Build Github++
         run: cmake --build vsbuild --config RelWithDebInfo
