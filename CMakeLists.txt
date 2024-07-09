@@ -6,11 +6,6 @@ project(githubpp)
 
 add_subdirectory(src)
 
-set_target_properties(githubpp PROPERTIES
-		VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_INSTALL_PREFIX}/bin
-		VS_DEBUGGER_COMMAND ${CMAKE_INSTALL_PREFIX}/bin/ModOrganizer.exe)
-set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT githubpp)
-
 configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/config.cmake.in
   "${CMAKE_CURRENT_BINARY_DIR}/mo2-githubpp-config.cmake"
   INSTALL_DESTINATION "lib/cmake/mo2-githubpp"
